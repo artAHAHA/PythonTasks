@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SQL Query Interface</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
     <style>
         .query-box {
             height: 150px;
@@ -35,6 +36,29 @@
         tr:hover {
             background-color: #f5f5f5;
         }
+        .action-buttons {
+            margin-bottom: 15px;
+        }
+        .action-buttons .btn {
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+        .history-btn {
+            padding: 3px 8px;
+            font-size: 12px;
+        }
+                .about-author-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+
+        .about-author-btn .btn {
+            border-radius: 50px;
+            padding: 8px 16px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
     </style>
 </head>
 <body>
@@ -60,6 +84,15 @@
         {% if rows and columns %}
             <div class="mt-4">
                 <h3>Results</h3>
+
+                <div class="action-buttons">
+                    <button class="btn btn-success" id="insert-new">Insert New</button>
+                    <button class="btn btn-warning" id="update-selected">Update Selected</button>
+                    <button class="btn btn-secondary" id="export-selected">Export Selected</button>
+                    <button class="btn btn-dark" id="copy-selected">Copy Selected</button>
+                    <button class="btn btn-danger" id="delete-selected">Delete Selected</button>
+                </div>
+
                 <div class="results-table">
                     <table class="table table-bordered table-hover">
                         <thead>
@@ -68,29 +101,65 @@
                                 {% for column in columns %}
                                     <th>{{ column }}</th>
                                 {% endfor %}
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for row in rows %}
                                 <tr>
-                                    <td><input type="checkbox" class="row-select"></td>
+                                    <td><input type="checkbox" class="row-select" data-id="{{ row.id }}"></td>
                                     {% for column in columns %}
                                         <td>{{ row[column] }}</td>
                                     {% endfor %}
+                                    <td>
+                                        <button class="btn btn-info btn-sm history-btn" data-id="{{ row.id }}">View History</button>
+                                    </td>
                                 </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
-
-                <div class="mt-3">
-                    <button class="btn btn-secondary" id="export-selected">Export Selected</button>
-                    <button class="btn btn-info" id="copy-selected">Copy Selected</button>
-                    <button class="btn btn-danger" id="delete-selected">Delete Selected</button>
-                </div>
             </div>
         {% endif %}
     </div>
+
+    <!-- Insert Modal -->
+    <div class="modal fade" id="insertModal" tabindex="-1" aria-labelledby="insertModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="insertModalLabel">Add New User</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="insertForm">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Name</label>
+                            <input type="text" class="form-control" id="name" name="name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="email" name="email" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="age" class="form-label">Age</label>
+                            <input type="number" class="form-control" id="age" name="age">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="submitInsert">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Update Modal (will be loaded dynamically) -->
+    <div id="updateModalContainer"></div>
+
+    <!-- History Modal (will be loaded dynamically) -->
+    <div id="historyModalContainer"></div>
 
     <script>
         // Select all rows when "Select All" checkbox is clicked
@@ -106,8 +175,8 @@
             const selectedRows = [];
             const headers = [];
 
-            // Get headers
-            document.querySelectorAll('thead th:not(:first-child)').forEach(th => {
+            // Get headers (excluding checkbox and actions columns)
+            document.querySelectorAll('thead th:not(:first-child):not(:last-child)').forEach(th => {
                 headers.push(th.textContent);
             });
             selectedRows.push(headers.join(','));
@@ -117,7 +186,7 @@
                 const checkbox = tr.querySelector('.row-select');
                 if (checkbox.checked) {
                     const rowData = [];
-                    tr.querySelectorAll('td:not(:first-child)').forEach(td => {
+                    tr.querySelectorAll('td:not(:first-child):not(:last-child)').forEach(td => {
                         rowData.push(td.textContent);
                     });
                     selectedRows.push(rowData.join(','));
@@ -145,8 +214,8 @@
             const selectedRows = [];
             const headers = [];
 
-            // Get headers
-            document.querySelectorAll('thead th:not(:first-child)').forEach(th => {
+            // Get headers (excluding checkbox and actions columns)
+            document.querySelectorAll('thead th:not(:first-child):not(:last-child)').forEach(th => {
                 headers.push(th.textContent);
             });
             selectedRows.push(headers.join('\t'));
@@ -156,7 +225,7 @@
                 const checkbox = tr.querySelector('.row-select');
                 if (checkbox.checked) {
                     const rowData = [];
-                    tr.querySelectorAll('td:not(:first-child)').forEach(td => {
+                    tr.querySelectorAll('td:not(:first-child):not(:last-child)').forEach(td => {
                         rowData.push(td.textContent);
                     });
                     selectedRows.push(rowData.join('\t'));
@@ -166,7 +235,6 @@
             if (selectedRows.length > 1) { // At least one row selected (plus headers)
                 const textToCopy = selectedRows.join('\n');
                 navigator.clipboard.writeText(textToCopy).then(() => {
-                    alert('Selected rows copied to clipboard!');
                 }).catch(err => {
                     console.error('Failed to copy: ', err);
                     alert('Failed to copy to clipboard. Please try again.');
@@ -175,45 +243,167 @@
                 alert('Please select at least one row to copy.');
             }
         });
-    </script>
-    <script>
-    document.getElementById('delete-selected').addEventListener('click', function() {
-        const selectedIds = [];
-        document.querySelectorAll('.row-select:checked').forEach(checkbox => {
-            selectedIds.push(checkbox.closest('tr').querySelector('td:nth-child(2)').textContent);
-        });
 
-        if (selectedIds.length === 0) {
-            alert('Please select at least one row to delete.');
-            return;
-        }
-
-        if (!confirm(`Are you sure you want to delete ${selectedIds.length} selected rows?`)) {
-            return;
-        }
-
-        fetch('/delete', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: new URLSearchParams({
-                'ids[]': selectedIds
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                alert(data.message);
-                location.reload(); // Обновляем страницу
-            } else {
-                alert('Error: ' + data.message);
-            }
-        })
-        .catch(error => {
-            alert('Error: ' + error);
-        });
+        // Delete selected rows
+document.getElementById('delete-selected').addEventListener('click', function() {
+    const selectedIds = [];
+    document.querySelectorAll('.row-select:checked').forEach(checkbox => {
+        selectedIds.push(checkbox.dataset.id);
     });
+
+    if (selectedIds.length === 0) {
+        alert('Please select at least one row to delete.');
+        return;
+    }
+
+    if (!confirm(`Are you sure you want to delete ${selectedIds.length} selected rows?`)) {
+        return;
+    }
+
+    fetch('/delete', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ids: selectedIds })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert(data.message);
+            location.reload(); // Refresh the page
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error: ' + error);
+    });
+});
+
+        // Insert new user
+        document.getElementById('insert-new').addEventListener('click', function() {
+            // Clear form
+            document.getElementById('insertForm').reset();
+
+            // Show modal
+            var insertModal = new bootstrap.Modal(document.getElementById('insertModal'));
+            insertModal.show();
+        });
+
+        // Handle insert form submission
+        document.getElementById('submitInsert').addEventListener('click', function() {
+            const formData = new FormData(document.getElementById('insertForm'));
+
+            fetch('/insert', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert(data.message);
+                    document.getElementById('insertModal').querySelector('.btn-close').click();
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error);
+            });
+        });
+
+        // Update selected user
+        document.getElementById('update-selected').addEventListener('click', function() {
+            const selectedCheckboxes = document.querySelectorAll('.row-select:checked');
+
+            if (selectedCheckboxes.length !== 1) {
+                alert('Please select exactly one row to update.');
+                return;
+            }
+
+            const userId = selectedCheckboxes[0].dataset.id;
+
+            // Load update form
+            fetch(`/update/${userId}`)
+            .then(response => response.text())
+            .then(html => {
+                // Inject the update form HTML
+                document.getElementById('updateModalContainer').innerHTML = html;
+
+                // Show modal
+                var updateModal = new bootstrap.Modal(document.getElementById('updateModal'));
+                updateModal.show();
+
+                // Handle form submission
+                document.getElementById('submitUpdate').addEventListener('click', function() {
+                    const formData = new FormData(document.getElementById('updateForm'));
+
+                    fetch(`/update/${userId}`, {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            alert(data.message);
+                            document.getElementById('updateModal').querySelector('.btn-close').click();
+                            location.reload();
+                        } else {
+                            alert('Error: ' + data.message);
+                        }
+                    })
+                    .catch(error => {
+                        alert('Error: ' + error);
+                    });
+                });
+            });
+        });
+
+        // View history for specific row
+        document.querySelectorAll('.history-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const userId = this.dataset.id;
+
+                // Load history
+                fetch(`/history/${userId}`)
+                .then(response => response.text())
+                .then(html => {
+                    // Inject the history HTML
+                    document.getElementById('historyModalContainer').innerHTML = html;
+
+                    // Show modal
+                    var historyModal = new bootstrap.Modal(document.getElementById('historyModal'));
+                    historyModal.show();
+                });
+            });
+        });
     </script>
+
+<!-- Кнопка "Об авторе" в правом нижнем углу -->
+<div class="about-author-btn">
+    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#authorModal">
+        Об авторе
+    </button>
+</div>
+
+<!-- Модальное окно "Об авторе" -->
+<div class="modal fade" id="authorModal" tabindex="-1" aria-labelledby="authorModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="authorModalLabel">Об авторе</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Выполнил студент 2 курса ФКН Артур Белокуров</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
 </html>
